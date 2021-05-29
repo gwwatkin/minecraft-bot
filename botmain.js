@@ -1,5 +1,6 @@
 const mineflayer = require('mineflayer')
 const mineflayerViewer = require('prismarine-viewer').mineflayer
+const autoeat = require('mineflayer-auto-eat')
 const vec3 = require('vec3')
 
 const { pathfinder, Movements, goals: { GoalNear } } = require('mineflayer-pathfinder')
@@ -18,6 +19,7 @@ class LittleHelper
         })
 
         this.bot.loadPlugin(pathfinder)
+        this.bot.loadPlugin(autoeat)
 
         this.stop = false // Tell things to stop
 
@@ -25,9 +27,18 @@ class LittleHelper
             this.mcData = require('minecraft-data')(this.bot.version)
             this.defaultMove = new Movements(this.bot, this.mcData)
 
+            this.bot.autoEat.options = {
+                priority: 'foodPoints',
+                startAt: 14,
+                bannedFood: []
+            }
+
             this.bot.on('chat', (username, message) => this.dispatchCommand(username,message))
         })
+
+
     }
+
 
     async dispatchCommand(username, message)
     {
