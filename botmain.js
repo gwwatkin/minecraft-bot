@@ -8,13 +8,13 @@ const botutils = require('./botutils.js')
 const quarry = require('./quarry.js')
 
 
-class LittleHelperBot
+class LittleHelper
 {
     constructor()
     {
         this.bot = mineflayer.createBot({
-            host: "3.230.142.29"
-            //,port: 42031
+            host: "localhost"//"3.230.142.29"
+            ,port: 46179
         })
 
         this.bot.loadPlugin(pathfinder)
@@ -66,11 +66,11 @@ class LittleHelperBot
                 const depth = eval(argv[2])
                 this.quarry(radius, depth)
                 break
+            case 'dump':
+                this.dump()
+                break
             case 'stop':
                 this.stop = true
-                break
-            case 'dump':
-
                 break
         }
     }
@@ -173,10 +173,20 @@ class LittleHelperBot
         this.quarry_task.run()
     }
 
+    async dump()
+    {
+        const items = this.bot.inventory.slots.filter(item => item)
+        for(const item of items)
+        {
+            await botutils.sleep(100)
+            this.bot.chat("Tossing "+item.name+" x "+item.count)
+            await this.bot.toss(item.type, null, item.count, (err) => {console.log(err)})
+        }
+    }
 }
 
 
-little_helper = new LittleHelperBot()
+little_helper = new LittleHelper()
 
 
-module.exports = {LittleHelperBot}
+module.exports = {LittleHelperBot: LittleHelper}

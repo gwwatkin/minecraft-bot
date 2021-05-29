@@ -31,6 +31,8 @@ class QuarryTask
         const { x: start_x, y: start_y, z: start_z } = this.quarry.start_pos
         console.log("Starting quarry centered at "+start_x+", "+start_z);
 
+        var last_harvest_time = performance.now()
+
         let level = -1 // Level indicates where we are from top layer of the quarry
         for(level = -1; level >= -this.quarry.depth; level--)
         {
@@ -38,6 +40,11 @@ class QuarryTask
 
             const success = await this.dig_level(level)
             if(!success) return;
+
+            if((performance.now()-last_harvest_time)/60*1000 > 1) {
+                await this.bottom_harvest()
+                last_harvest_time = performance.now()
+            }
 
             await this.try_place_on_wall(level, 'ladder', vec3(1,0,0))
 
@@ -131,7 +138,7 @@ class QuarryTask
 
             // Sleep because sometimes when the tool breaks it takes time
             // for the client to be notified
-            await new Promise(r => setTimeout(r, 100))
+            await botutils.sleep(100)
             const best_tool = this.little_helper.bot.pathfinder.bestHarvestTool(target_block);
 
             await this.little_helper.bot.equip(best_tool)

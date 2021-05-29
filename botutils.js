@@ -26,11 +26,17 @@ function isSolidBlock(block)
     return block.boundingBox !== 'empty' && block.diggable;
 }
 
-function onDiggingCompleted (err) {
+function onDiggingCompleted (err)
+{
     if (err) {
         console.log(err.stack)
         return
     }
 }
 
-module.exports = {make_goal_near,itemToString, isSolidBlock, onDiggingCompleted}
+async function sleep(t)
+{
+    return new Promise(r => setTimeout(r, t))
+}
+
+module.exports = {make_goal_near,itemToString, isSolidBlock, onDiggingCompleted,sleep}
