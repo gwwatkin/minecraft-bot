@@ -1,25 +1,36 @@
-const mineflayer = require('mineflayer')
+import {LittleHelper} from "./botmain";
+
 const mineflayerViewer = require('prismarine-viewer').mineflayer
 const vec3 = require('vec3')
 
-const { pathfinder, Movements, goals: { GoalNear } } = require('mineflayer-pathfinder')
-const botutils = require('./botutils.js')
+import * as  botutils from './botutils'
+import './botmain'
 
 
-class Quarry
+
+import {pathfinder, Movements, goals} from 'mineflayer-pathfinder';
+import { Item } from 'prismarine-item';
+import { Vec3 } from 'vec3';
+import { Block } from 'prismarine-block';
+import { Entity } from 'prismarine-entity';
+
+
+
+export interface Quarry
 {
-    constructor(start_pos, radius, depth)
-    {
-        this.start_pos = start_pos
-        this.radius = radius
-        this.depth = depth
-    }
+        start_pos : Vec3,
+        radius : number,
+        depth : number
 }
 
 
-class QuarryTask
+export class QuarryTask
 {
-    constructor(quarry,little_helper)
+
+    quarry : Quarry;
+    little_helper : LittleHelper;
+
+    constructor(quarry : Quarry, little_helper : LittleHelper)
     {
         this.quarry = quarry
         this.little_helper = little_helper
@@ -27,7 +38,6 @@ class QuarryTask
 
     async run()
     {
-        const start_pos = this.quarry.start_pos
         const { x: start_x, y: start_y, z: start_z } = this.quarry.start_pos
         console.log("Starting quarry centered at "+start_x+", "+start_z);
 
@@ -41,8 +51,8 @@ class QuarryTask
             const success = await this.dig_level(level)
             if(!success) return;
 
-            if((performance.now()-last_harvest_time)/60*1000 > 1) {
-                await this.bottom_harvest()
+            if((performance.now()-last_harvest_time)/(60*1000) > 3) {
+                await this.harvestLevel(level)
                 last_harvest_time = performance.now()
             }
 
@@ -54,13 +64,14 @@ class QuarryTask
 
         } // done with digging
 
-        await this.bottom_harvest();
-        this.little_helper.bot.chat("Finished quarry at "+position_to_string(start_pos.offset(0,-depth,0)))
+        await this.harvestLevel(-this.quarry.depth);
+        this.little_helper.bot.chat("Finished quarry at "+
+            botutils.positionToString(this.quarry.start_pos.offset(0,-this.quarry.depth,0)))
     }
 
 
 
-    async try_place_on_wall(level, block_name, direction)
+    async try_place_on_wall(level : number, block_name : string, direction : Vec3)
     {
         const equipped = await this.little_helper.equipItem(block_name)
         if(!equipped)
@@ -84,12 +95,12 @@ class QuarryTask
         await this.little_helper.bot.pathfinder.goto(botutils.make_goal_near(this.levelCenter(level),0))
     }
 
-    levelCenter(level)
+    levelCenter(level : number)
     {
         return this.quarry.start_pos.offset(0, level, 0);
     }
 
-    async dig_level(level)
+    async dig_level(level : number)
     {
         const start_pos = this.quarry.start_pos
 
@@ -113,15 +124,15 @@ class QuarryTask
 
 
 
-    async dig_block(target_block)
+    async dig_block(target_block : Block)
     {
         // If block below is not diggable means there is something empty like a cave
         if(!botutils.isSolidBlock(
             this.little_helper.bot.blockAt(target_block.position.offset(0,-1,0))))
         {
             this.little_helper.bot.chat("Stopping Quarry: found undiggable under block "
-                +botutils.position_to_string(target_block.position))
-            stop = true;
+                +botutils.positionToString(target_block.position))
+            this.little_helper.stop = true;
             return;
         }
 
@@ -129,7 +140,7 @@ class QuarryTask
         // Try getting closer if can't mine the block
         if(!this.little_helper.bot.canDigBlock(target_block))
         {
-            await this.little_helper.bot.pathfinder.goto(new GoalNear(
+            await this.little_helper.bot.pathfinder.goto(new goals.GoalNear(
                 target_block.position.x, target_block.position.y+1, target_block.position.z, 3))
         }
 
@@ -141,9 +152,9 @@ class QuarryTask
             await botutils.sleep(100)
             const best_tool = this.little_helper.bot.pathfinder.bestHarvestTool(target_block);
 
-            await this.little_helper.bot.equip(best_tool)
+            await this.little_helper.bot.equip(best_tool, null)
 
-            await this.little_helper.bot.dig(target_block,botutils.onDiggingCompleted);
+            await this.little_helper.bot.dig(target_block, true, botutils.onDiggingCompleted);
         }
         else
         {
@@ -153,10 +164,10 @@ class QuarryTask
     }
 
 
-    async bottom_harvest()
+    async harvestLevel(level : number)
     {
         // Harvest the resources
-        const l = this.levelOffsets(-this.quarry.depth)
+        const l = this.levelOffsets(level)
         for (const j in l) {
             const offset = l[j]
             const target_block = this.little_helper.bot.blockAt(
@@ -166,11 +177,11 @@ class QuarryTask
 
         // Back to the center
         await this.little_helper.bot.pathfinder.goto(
-            botutils.make_goal_near(this.levelCenter(this.quarry.depth),0))
+            botutils.make_goal_near(this.levelCenter(level),0))
     }
 
 
-    check_boundaries(level)
+    check_boundaries(level : number)
     {
         const lvl_center = this.levelCenter(level)
 
@@ -187,12 +198,12 @@ class QuarryTask
     }
 
 
-    is_diggable(center, x_offset, y_offset, z_offset)
+    is_diggable(center : Vec3, x_offset, y_offset, z_offset)
     {
         const target = center.offset(x_offset, y_offset, z_offset)
         if(!botutils.isSolidBlock(this.little_helper.bot.blockAt(target)))
         {
-            this.little_helper.bot.chat("Stopping Quarry: found undiggable block at "+target.x+", "+target.y+", "+target.z)
+            this.little_helper.bot.chat("Stopping Quarry: found undiggable block at"+botutils.positionToString(target))
             // Need to make this async to do this, perhaps better to pass the goal instead
             //this.little_helper.bot.pathfinder.goto(make_goal_near(target, 2))
             return false;
@@ -201,7 +212,7 @@ class QuarryTask
     }
 
 
-    levelOffsets(level)
+    levelOffsets(level : number)
     {
         var l = []
         for(var i = -this.quarry.radius; i<=this.quarry.radius; i++)
@@ -216,6 +227,3 @@ class QuarryTask
 
 
 }
-
-
-module.exports = {Quarry, QuarryTask}

@@ -1,18 +1,34 @@
+
+import {Bot} from "mineflayer";
+
+import * as  botutils from './botutils'
+import * as quarry from './quarry'
+
+
 const mineflayer = require('mineflayer')
 const mineflayerViewer = require('prismarine-viewer').mineflayer
 const autoeat = require('mineflayer-auto-eat')
 const vec3 = require('vec3')
 
-const { pathfinder, Movements, goals: { GoalNear } } = require('mineflayer-pathfinder')
+import MinecraftData = require('minecraft-data')
 
-const botutils = require('./botutils.js')
-const quarry = require('./quarry.js')
+const { pathfinder, Movements, goals: { GoalNear }, movements } = require('mineflayer-pathfinder')
 
 
-class LittleHelper
+
+
+export class LittleHelper
 {
+    bot : Bot;
+    stop : boolean;
+    mcData : MinecraftData.IndexedData
+    defaultMove : typeof Movements
+
+    quarry_task? : quarry.QuarryTask
+
     constructor()
     {
+        console.log("Logging in")
         this.bot = mineflayer.createBot({
             host: "localhost"//"3.230.142.29"
             ,port: 46179
@@ -27,6 +43,7 @@ class LittleHelper
             this.mcData = require('minecraft-data')(this.bot.version)
             this.defaultMove = new Movements(this.bot, this.mcData)
 
+            // @ts-ignore
             this.bot.autoEat.options = {
                 priority: 'foodPoints',
                 startAt: 14,
@@ -54,7 +71,7 @@ class LittleHelper
                 this.bot.chat('Ready!')
                 break
             case 'list':
-                this.sayItems()
+            this.sayItems()
                 break
             case 'dig':
                 this.dig()
@@ -78,7 +95,7 @@ class LittleHelper
                 this.quarry(radius, depth)
                 break
             case 'dump':
-                this.dump()
+                await this.dump()
                 break
             case 'stop':
                 this.stop = true
@@ -104,7 +121,7 @@ class LittleHelper
             target = this.bot.blockAt(this.bot.entity.position.offset(0, -1, 0))
             if (target && this.bot.canDigBlock(target)) {
                 this.bot.chat(`starting to dig ${target.name}`)
-                this.bot.dig(target, botutils.onDiggingCompleted)
+                this.bot.dig(target, null,  botutils.onDiggingCompleted)
             } else {
                 this.bot.chat('cannot dig')
             }
@@ -171,16 +188,15 @@ class LittleHelper
             this.bot.chat("I don't see you !")
             return
         }
-        const { x: playerX, y: playerY, z: playerZ } = target.position
 
         this.bot.pathfinder.setMovements(moveMethod)
-        this.bot.pathfinder.setGoal(new GoalNear(playerX, playerY, playerZ, RANGE_GOAL))
+        this.bot.pathfinder.setGoal(botutils.make_goal_near(target.position))
     }
 
-    quarry(radius,depth)
+    quarry(radius : number ,depth : number)
     {
         this.quarry_task = new quarry.QuarryTask(
-            new quarry.Quarry(this.bot.entity.position, radius,depth), this)
+            {start_pos: this.bot.entity.position, radius: radius, depth: depth}, this)
         this.quarry_task.run()
     }
 
@@ -189,15 +205,13 @@ class LittleHelper
         const items = this.bot.inventory.slots.filter(item => item)
         for(const item of items)
         {
-            await botutils.sleep(100)
-            this.bot.chat("Tossing "+item.name+" x "+item.count)
-            await this.bot.toss(item.type, null, item.count, (err) => {console.log(err)})
+            await botutils.sleep(500)
+            console.log(item)
+            await this.bot.chat("Tossing "+item.name+" x "+item.count)
+            await this.bot.toss(item.type, null, item.count, (err) => {if(err)console.log(err)})
         }
     }
 }
 
 
-little_helper = new LittleHelper()
-
-
-module.exports = {LittleHelperBot: LittleHelper}
+const little_helper = new LittleHelper()
