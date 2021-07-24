@@ -1,13 +1,11 @@
-import {LittleHelper} from "./botmain";
-
 const mineflayerViewer = require('prismarine-viewer').mineflayer
-const vec3 = require('vec3')
 
 import * as  botutils from './botutils'
-import './botmain'
+import {LittleHelper} from './botmain'
+import * as block_digger from './block_digger'
 
 
-
+import * as mineflayer from 'mineflayer'
 import {pathfinder, Movements, goals} from 'mineflayer-pathfinder';
 import { Item } from 'prismarine-item';
 import { Vec3 } from 'vec3';
@@ -22,6 +20,7 @@ export interface Quarry
         radius : number,
         depth : number
 }
+
 
 
 export class QuarryTask
@@ -56,10 +55,10 @@ export class QuarryTask
                 last_harvest_time = performance.now()
             }
 
-            await this.try_place_on_wall(level, 'ladder', vec3(1,0,0))
+            await this.try_place_on_wall(level, 'ladder', new Vec3(1,0,0))
 
             if(level%5 === 0)
-                await this.try_place_on_wall(level, 'torch', vec3(-1,0,0))
+                await this.try_place_on_wall(level, 'torch', new Vec3(-1,0,0))
 
 
         } // done with digging
@@ -102,8 +101,6 @@ export class QuarryTask
 
     async dig_level(level : number)
     {
-        const start_pos = this.quarry.start_pos
-
         const l = this.levelOffsets(level)
         if(!this.check_boundaries(level))
             return false;
@@ -111,7 +108,7 @@ export class QuarryTask
         for(const j in l)
         {
             const offset = l[j]
-            await this.dig_block(this.little_helper.bot.blockAt(start_pos.offset(offset.x,offset.y,offset.z)))
+            await this.dig(this.quarry.start_pos.offset(offset.x,offset.y,offset.z))
 
             if(this.little_helper.stop)
             {
@@ -124,43 +121,19 @@ export class QuarryTask
 
 
 
-    async dig_block(target_block : Block)
+    async dig(target : Vec3)
     {
         // If block below is not diggable means there is something empty like a cave
         if(!botutils.isSolidBlock(
-            this.little_helper.bot.blockAt(target_block.position.offset(0,-1,0))))
+            this.little_helper.bot.blockAt(target.offset(0,-1,0))))
         {
             this.little_helper.bot.chat("Stopping Quarry: found undiggable under block "
-                +botutils.positionToString(target_block.position))
+                +botutils.positionToString(target))
             this.little_helper.stop = true;
             return;
         }
 
-
-        // Try getting closer if can't mine the block
-        if(!this.little_helper.bot.canDigBlock(target_block))
-        {
-            await this.little_helper.bot.pathfinder.goto(new goals.GoalNear(
-                target_block.position.x, target_block.position.y+1, target_block.position.z, 3))
-        }
-
-        if(this.little_helper.bot.canDigBlock(target_block))
-        {
-
-            // Sleep because sometimes when the tool breaks it takes time
-            // for the client to be notified
-            await botutils.sleep(100)
-            const best_tool = this.little_helper.bot.pathfinder.bestHarvestTool(target_block);
-
-            await this.little_helper.bot.equip(best_tool, null)
-
-            await this.little_helper.bot.dig(target_block, true, botutils.onDiggingCompleted);
-        }
-        else
-        {
-            // If still can't mine abort
-            this.little_helper.bot.chat("Could not mine block at position ")
-        }
+        await block_digger.digBlock(this.little_helper.bot, target)
     }
 
 
@@ -200,15 +173,7 @@ export class QuarryTask
 
     is_diggable(center : Vec3, x_offset, y_offset, z_offset)
     {
-        const target = center.offset(x_offset, y_offset, z_offset)
-        if(!botutils.isSolidBlock(this.little_helper.bot.blockAt(target)))
-        {
-            this.little_helper.bot.chat("Stopping Quarry: found undiggable block at"+botutils.positionToString(target))
-            // Need to make this async to do this, perhaps better to pass the goal instead
-            //this.little_helper.bot.pathfinder.goto(make_goal_near(target, 2))
-            return false;
-        }
-        return true;
+        return botutils.isDiggableOffset(this.little_helper.bot, center, x_offset, y_offset, z_offset);
     }
 
 

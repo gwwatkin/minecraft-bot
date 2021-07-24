@@ -3,6 +3,7 @@ import {Bot} from "mineflayer";
 
 import * as  botutils from './botutils'
 import * as quarry from './quarry'
+import * as strip_mine from './strip_mine'
 
 
 const mineflayer = require('mineflayer')
@@ -31,7 +32,7 @@ export class LittleHelper
         console.log("Logging in")
         this.bot = mineflayer.createBot({
             host: "localhost"//"3.230.142.29"
-            ,port: 46179
+            ,port: 37659
         })
 
         this.bot.loadPlugin(pathfinder)
@@ -93,6 +94,12 @@ export class LittleHelper
                 const radius = eval(argv[1])
                 const depth = eval(argv[2])
                 this.quarry(radius, depth)
+                break
+            case 'tunnel':
+                const task = new strip_mine.TunnelTask({
+                    'direction' : strip_mine.NORTH_DIRECTION
+                },this)
+                task.run()
                 break
             case 'dump':
                 await this.dump()
@@ -202,14 +209,14 @@ export class LittleHelper
 
     async dump()
     {
-        const items = this.bot.inventory.slots.filter(item => item)
-        for(const item of items)
-        {
-            await botutils.sleep(500)
-            console.log(item)
-            await this.bot.chat("Tossing "+item.name+" x "+item.count)
-            await this.bot.toss(item.type, null, item.count, (err) => {if(err)console.log(err)})
+        const items = this.bot.inventory.items() // get the items
+
+        // dropper is a recursive function
+        const dropper = (i) => {
+            if (!items[i]) return // if we dropped all items, stop.
+            this.bot.tossStack(items[i], () => dropper(i + 1)) // drop the item, then wait for a response from the server and drop another one.
         }
+        dropper(0)
     }
 }
 
